@@ -1,1 +1,18 @@
-s
+# ci-templates/.github/workflows/featureCi.yml
+name: Feature CI
+on:
+  workflow_call:
+    inputs:
+      branch_glob: { type: string, default: 'feature/**' }
+      stack: { type: string, default: 'php-laravel' }   # used by composite action
+    secrets:
+      github_token: { required: true }
+
+jobs:
+  fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup & Fast tests
+        uses: org/ci-templates/.github/actions/setup-${{ inputs.stack }}@v1
+        with: { mode: fast }   # lint + unit only
