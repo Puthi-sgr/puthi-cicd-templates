@@ -1,6 +1,7 @@
 # puthi-cicd-templates
 CI/CD auto merge + auto deploy template
 
+
 ## Repository layout
 
 ```
@@ -14,6 +15,45 @@ puthi-cicd-templates/
    └─ actions/
       └─ setup-php-laravel/action.yml  # example stack composite action
 ```
+## How these workflow share works
+```
++-----------------------+
+| App Repo Wrapper      |
+| (e.g., feature-fast)  |
++-----------------------+
+            |
+            |  uses:
+            |  Puthi-sgr/puthi-cicd-templates/.github/workflows/featureCi.yml@v1
+            v
++-----------------------+
+| Reusable Workflow     |
+| featureCi.yml         |
+| (on: workflow_call)   |
++-----------------------+
+            |
+            |  steps:
+            |    - uses: Puthi-sgr/puthi-cicd-templates/
+            |            .github/actions/setup-${{ inputs.stack }}@v1
+            v
++-----------------------+
+| Composite Action      |
+| setup-php-laravel/    |
+| (action.yml)          |
++-----------------------+
+            |
+            |  runs:
+            |    - setup PHP
+            |    - composer install
+            |    - php artisan test
+            |    - (if mode=full → build tarball, export PACKAGE_PATH)
+            v
++-----------------------+
+| Actual Build/Tests    |
+| (executed inside CI)  |
++-----------------------+
+
+```
+
 ## How to use in a project
 ### A) Feature CI on push to feature/**
 ```
@@ -102,7 +142,7 @@ You are an expert DevOps assistant.
 I am using a modular GitHub Actions CI/CD workflow design that is **merge-first** and **stack-agnostic**.  
 This design has two main layers:
 
-1. **Reusable workflows** (in a `ci-templates` repo, under `.github/workflows/`):  
+1. **Reusable workflows** (in a `puthi-cicd-templates` repo, under `.github/workflows/`):  
    - `featureCi.yml`: runs Fast CI (lint + unit tests) on `feature/**` branches.  
    - `ci.yml`: runs Full CI on PRs → executes full test suite and packages a tarball. Publishes the tarball to a **durable store** (GitHub Release, keyed by tag or SHA).  
    - `merge.yml`: merges PRs into `main` **only after Full CI succeeds**.  
