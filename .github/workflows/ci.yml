@@ -1,3 +1,4 @@
+# puthi-cicd-templates/.github/workflows/ci.yml
 name: CI
 on:
   workflow_call:
@@ -16,8 +17,7 @@ jobs:
         uses: Puthi-sgr/puthi-cicd-templates/.github/actions/setup-${{ inputs.stack }}@v1
         with: { mode: full }                         # sets $PACKAGE_PATH
 
-  # Determine APP_VERSION: prefer existing tag; else short SHA
-      - name: Ensure APP_VERSION
+      - name: Ensure APP_VERSION (tag or short SHA)
         shell: bash
         run: |
           if git describe --tags --exact-match >/dev/null 2>&1; then
@@ -25,7 +25,7 @@ jobs:
           else
             echo "APP_VERSION=${GITHUB_SHA::7}" >> $GITHUB_ENV
           fi
-# Publish tarball to GitHub Release (Upload this bad boy to the cloud)
+
       - name: Create/Update Release with tarball
         uses: softprops/action-gh-release@v2
         with:
