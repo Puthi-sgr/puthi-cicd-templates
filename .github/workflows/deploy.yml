@@ -59,7 +59,7 @@ jobs:
                 && inputs.allow_fallback_build
                 && github.event_name != 'workflow_run'
                 && inputs.stack != '' }}
-        uses: Puthi-sgr/puthi-cicd-templates/.github/actions/setup-${{ inputs.stack }}@v1
+        uses: Puthi-sgr/puthi-cicd-templates/.github/actions/setup-${{ inputs.stack }}
         with: { mode: full }   # builds tar + sets $PACKAGE_PATH
 
       - name: Select TARBALL_PATH
