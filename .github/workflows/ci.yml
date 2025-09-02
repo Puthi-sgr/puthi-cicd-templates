@@ -1,0 +1,36 @@
+name: CI
+on:
+  workflow_call:
+    inputs:
+      stack: { type: string, default: 'php-laravel' }
+    secrets:
+      github_token: { required: true }
+
+jobs:
+  full:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup & Full tests + Package
+        uses: Puthi-sgr/puthi-cicd-templates/.github/actions/setup-${{ inputs.stack }}@v1
+        with: { mode: full }                         # sets $PACKAGE_PATH
+
+  # Determine APP_VERSION: prefer existing tag; else short SHA
+      - name: Ensure APP_VERSION
+        shell: bash
+        run: |
+          if git describe --tags --exact-match >/dev/null 2>&1; then
+            echo "APP_VERSION=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
+          else
+            echo "APP_VERSION=${GITHUB_SHA::7}" >> $GITHUB_ENV
+          fi
+# Publish tarball to GitHub Release (Upload this bad boy to the cloud)
+      - name: Create/Update Release with tarball
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.APP_VERSION }}
+          files:    ${{ env.PACKAGE_PATH }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.github_token }}
