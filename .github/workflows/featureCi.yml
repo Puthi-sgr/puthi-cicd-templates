@@ -14,5 +14,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup & Fast tests
-        uses: org/ci-templates/.github/actions/setup-${{ inputs.stack }}@v1
+        uses: Puthi-sgr/puthi-cicd-templates/.github/actions/setup-${{ inputs.stack }}@v1
         with: { mode: fast }   # lint + unit only
