@@ -23,7 +23,7 @@ puthi-cicd-templates/
 +-----------------------+
             |
             |  uses:
-            |  Puthi-sgr/puthi-cicd-templates/.github/workflows/featureCi.yml@v1
+            |  Puthi-sgr/puthi-cicd-templates/.github/workflows/featureCi.yml@v1.0.2 #version changes
             v
 +-----------------------+
 | Reusable Workflow     |
@@ -33,7 +33,7 @@ puthi-cicd-templates/
             |
             |  steps:
             |    - uses: Puthi-sgr/puthi-cicd-templates/
-            |            .github/actions/setup-${{ inputs.stack }}@v1
+            |            .github/actions/setup-${{ inputs.stack }}@v1.0.2
             v
 +-----------------------+
 | Composite Action      |
@@ -64,7 +64,7 @@ on:
 
 jobs:
   call:
-    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/featureCi.yml@v1
+    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/featureCi.yml@v1.0.2
     with:
       branch_glob: "feature/**"
       stack: "php-laravel"
@@ -81,7 +81,7 @@ on:
 
 jobs:
   call:
-    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/ci.yml@v1
+    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/ci.yml@v1.0.2.0.2
     with: { stack: "php-laravel" }
     secrets:
       github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -99,7 +99,7 @@ on:
 jobs:
   call:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/merge.yml@v1
+    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/merge.yml@v1.0.2
     secrets:
       github_token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -122,7 +122,7 @@ on:
 jobs:
   call:
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
-    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/deploy.yml@v1
+    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/deploy.yml@v1.0.2
     with:
       environment: "staging"
       deploy_script: "./scripts/deploy.sh"
