@@ -1,0 +1,23 @@
+# puthi-cicd-templates/.github/workflows/merge.yml
+name: Merge
+on:
+  workflow_call:
+    secrets:
+      github_token: { required: true }
+
+jobs:
+  merge-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: cli/cli-action@v2
+      - name: Merge PR after CI success (squash, auto)
+        env:
+          GH_TOKEN: ${{ secrets.github_token }}
+          GITHUB_TOKEN: ${{ secrets.github_token }}
+        run: |
+          PR=$(gh pr list --head "${{ github.event.workflow_run.head_branch }}" --json "number" -q ".[0].number")
+          gh pr merge "$PR" --squash --auto
+          echo "GH_TOKEN set: ${GH_TOKEN:+yes}"
