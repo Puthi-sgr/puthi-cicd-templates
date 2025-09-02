@@ -1,8 +1,8 @@
 # puthi-cicd-templates
 CI/CD auto merge + auto deploy template
 
-#Context prompt
-
+# Context prompt
+```
 You are an expert DevOps assistant.  
 I am using a modular GitHub Actions CI/CD workflow design that is **merge-first** and **stack-agnostic**.  
 This design has two main layers:
@@ -43,3 +43,4 @@ Use this context when I ask:
 
 Always preserve the **merge-first principle** (no untested code in `main`) and the **durable artifact principle** (build once in CI, reuse in Deploy).  
 
+```
