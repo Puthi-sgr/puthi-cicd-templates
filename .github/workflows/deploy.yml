@@ -1,0 +1,91 @@
+# puthi-cicd-templates/.github/workflows/deploy.yml
+name: Deploy
+on:
+  workflow_call:
+    inputs:
+      environment:            { type: string,  default: 'staging' }
+      deploy_script:          { type: string,  default: './scripts/deploy.sh' }
+      stack:                  { type: string,  default: '' }           # e.g., php-laravel
+      allow_fallback_build:   { type: boolean, default: false }        # manual/push only
+    secrets:
+      host:         { required: true }
+      ssh_key:      { required: true }
+      github_token: { required: true }
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cli/cli-action@v2
+
+      - name: Resolve VERSION
+        id: resolve
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.version || '' }}" ]; then
+            V="${{ github.event.inputs.version }}"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            V="${GITHUB_SHA::7}"
+          else
+            V="${{ github.event.workflow_run.head_sha }}"; V="${V:0:7}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Resolved VERSION=$V"
+
+      - name: Download tarball from Release
+        id: fetch
+        env: { GH_TOKEN: ${{ secrets.github_token }} }
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p pkg
+          VERSION="${{ steps.resolve.outputs.version }}"
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release download "$VERSION" -p "*.tgz" -D pkg
+            echo "have_artifact=true"  >> "$GITHUB_OUTPUT"
+            echo "tar=./pkg/$(ls pkg | head -n1)" >> "$GITHUB_OUTPUT"
+          else
+            echo "have_artifact=false" >> "$GITHUB_OUTPUT"
+            echo "No release for $VERSION"
+          fi
+
+      - name: Fallback build (manual/push only)
+        if: ${{ steps.fetch.outputs.have_artifact != 'true'
+                && inputs.allow_fallback_build
+                && github.event_name != 'workflow_run'
+                && inputs.stack != '' }}
+        uses: Puthi-sgr/puthi-cicd-templates/.github/actions/setup-${{ inputs.stack }}@v1
+        with: { mode: full }   # builds tar + sets $PACKAGE_PATH
+
+      - name: Select TARBALL_PATH
+        id: select
+        shell: bash
+        run: |
+          if [ "${{ steps.fetch.outputs.have_artifact }}" = "true" ]; then
+            echo "path=${{ steps.fetch.outputs.tar }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ inputs.allow_fallback_build }}" = "true" ] && [ "${{ github.event_name }}" != "workflow_run" ]; then
+            [ -n "${PACKAGE_PATH:-}" ] || { echo "PACKAGE_PATH missing"; exit 1; }
+            echo "path=$PACKAGE_PATH" >> "$GITHUB_OUTPUT"
+          else
+            echo "No artifact available (and fallback disabled). Failing." >&2
+            exit 1
+          fi
+
+      - name: Prepare SSH
+        shell: bash
+        run: |
+          echo "${{ secrets.ssh_key }}" > key && chmod 600 key
+
+      - name: Deploy via SSH (atomic)
+        env:
+          HOST: ${{ secrets.host }}
+          TARBALL: ${{ steps.select.outputs.path }}
+        shell: bash
+        run: |
+          scp -i key "$TARBALL" "$HOST":/var/www/app/tmp/app.tgz
+          ssh -i key "$HOST" '${{ inputs.deploy_script }} ${{ inputs.environment }}'
