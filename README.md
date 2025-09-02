@@ -1,6 +1,101 @@
 # puthi-cicd-templates
 CI/CD auto merge + auto deploy template
 
+## Repository layout
+
+```
+puthi-cicd-templates/
+└─ .github/
+   ├─ workflows/
+   │  ├─ featureCi.yml   # Fast checks + (optional) auto-open PR
+   │  ├─ ci.yml          # Full CI on PR + publish tarball to Release
+   │  ├─ merge.yml       # Merge to main only after Full CI success
+   │  └─ deploy.yml      # Deploy (manual | push main | workflow_run after merge)
+   └─ actions/
+      └─ setup-php-laravel/action.yml  # example stack composite action
+```
+## How to use in a project
+### A) Feature CI on push to feature/**
+```
+# .github/workflows/feature-fast.yml
+name: Feature CI (Wrapper)
+on:
+  push: { branches: [ "feature/**" ] }
+
+jobs:
+  call:
+    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/featureCi.yml@v1
+    with:
+      branch_glob: "feature/**"
+      stack: "php-laravel"
+    secrets:
+      github_token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+### B) Full CI on PR → main
+```
+# .github/workflows/full-ci.yml
+name: CI (Wrapper)
+on:
+  pull_request: { branches: [ "main" ] }
+
+jobs:
+  call:
+    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/ci.yml@v1
+    with: { stack: "php-laravel" }
+    secrets:
+      github_token: ${{ secrets.GITHUB_TOKEN }}
+```
+### C) Merge only after Full CI success
+```
+# .github/workflows/merge-on-ci-success.yml
+name: Merge (Wrapper)
+on:
+  workflow_run:
+    workflows: [ "CI (Wrapper)" ]
+    types: [ completed ]
+    branches: [ "main" ]
+
+jobs:
+  call:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/merge.yml@v1
+    secrets:
+      github_token: ${{ secrets.GITHUB_TOKEN }}
+```
+### D) Deploy — manual | push | after Merge (with optional fallback)
+```
+# .github/workflows/deploy.yml
+name: Deploy (Wrapper)
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag or short SHA (e.g., v1.2.3 or abc1234)"
+        required: false
+  push: { branches: [ "main" ] }
+  workflow_run:
+    workflows: [ "Merge (Wrapper)" ]
+    types: [ completed ]
+    branches: [ "main" ]
+
+jobs:
+  call:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/deploy.yml@v1
+    with:
+      environment: "staging"
+      deploy_script: "./scripts/deploy.sh"
+      stack: "php-laravel"
+      allow_fallback_build: true   # manual/push only; merge path stays strict
+    secrets:
+      host:         ${{ secrets.SSH_HOST }}
+      ssh_key:      ${{ secrets.SSH_KEY }}
+      github_token: ${{ secrets.GITHUB_TOKEN }}
+
+```
+
+
 # Context prompt
 ```
 You are an expert DevOps assistant.  
