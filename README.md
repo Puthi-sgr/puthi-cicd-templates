@@ -54,7 +54,7 @@ puthi-cicd-templates/
 
 ```
 
-## How to use in a project
+## How to use in a project non-container
 ### A) Feature CI on push to feature/**
 ```
 # .github/workflows/feature-fast.yml
@@ -135,6 +135,79 @@ jobs:
 
 ```
 
+## How to use in a project container version
+### A) Feature CI on push to feature/**
+```yml
+.github/workflows/feature-container-ci.yml
+name: Feature (Container CI)
+on:
+  push:
+    branches: ["feature/**"]
+
+jobs:
+  ci:
+    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/container-ci.yml@v1.1.0
+    with:
+      image_name: ghcr.io/ORG/APP
+      stack: php-laravel
+      build_mode: fast
+    secrets:
+      github_token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+### B) Pull request container
+```yml
+.github/workflows/pr-container-ci.yml
+name: PR (Container CI)
+on:
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  ci:
+    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/container-ci.yml@v1.1.0
+    with:
+      image_name: ghcr.io/ORG/APP
+      stack: php-laravel
+      build_mode: full
+    secrets:
+      github_token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+### C) Deploy container
+```yml
+.github/workflows/deploy-container.yml
+name: Deploy (Container)
+
+on:
+  workflow_run:
+    workflows: ["PR (Container CI)"]
+    types: [ "completed" ]
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/container-deploy.yml@v1.1.0
+    with:
+      working_dir: "/opt/laravel-crud"
+      compose_file: "docker-compose.prod.yml"
+      image_ref: "ghcr.io/ORG/APP:${{ github.sha }}"   # pin to exact build
+      health_url: "https://your-domain.com/health"
+    secrets:
+      host:     ${{ secrets.SSH_HOST }}
+      ssh_user: ${{ secrets.SSH_USER }}
+      ssh_key:  ${{ secrets.SSH_KEY }}
+      ghcr_pat: ${{ secrets.GHCR_PAT }}
+```
+
+### Flow of this docker workflow
+```
+feature push  → Feature (Container CI): unit tests + image build (no push)
+PR to main    → PR (Container CI): full tests + build (no push)
+merge success → main build (same workflow file): build + push image (:sha, :latest)
+deploy trigger→ Deploy (Container): pin :sha → docker compose pull/up → migrate → health
+```
 
 # Context prompt
 ```

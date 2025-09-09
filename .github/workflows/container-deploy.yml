@@ -1,0 +1,55 @@
+name: container-deploy
+
+on:
+  workflow_call:
+    inputs:
+      working_dir:  { type: string, required: false, default: "/opt/app" }
+      compose_file: { type: string, required: false, default: "docker-compose.prod.yml" }
+      image_ref:    { type: string, required: true }   # ghcr.io/org/app:sha (prefer pin)
+      health_url:   { type: string, required: false, default: "" }
+    secrets:
+      host:         { required: true }  # SSH host/IP
+      ssh_user:     { required: true }  # SSH user (e.g., ubuntu)
+      ssh_key:      { required: true }  # private key
+      ghcr_pat:     { required: true }  # PAT with read:packages
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Upload compose/env to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.host }}
+          username: ${{ secrets.ssh_user }}
+          key: ${{ secrets.ssh_key }}
+          source: "${{ inputs.compose_file }},stack.env"
+          target: "${{ inputs.working_dir }}"
+
+      - name: Rollout
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.host }}
+          username: ${{ secrets.ssh_user }}
+          key: ${{ secrets.ssh_key }}
+          script: |
+            set -euo pipefail
+            cd ${{ inputs.working_dir }}
+            echo "${{ secrets.ghcr_pat }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            # Ensure app image is pinned to desired ref
+            sed -i "s|^\(\s*image:\s*\).*|\1${{ inputs.image_ref }}|g" ${{ inputs.compose_file }}
+            docker compose -f ${{ inputs.compose_file }} pull
+            docker compose -f ${{ inputs.compose_file }} up -d --remove-orphans
+            docker compose -f ${{ inputs.compose_file }} exec -T app php artisan key:generate --force || true
+            docker compose -f ${{ inputs.compose_file }} exec -T app php artisan migrate --force || true
+            docker compose -f ${{ inputs.compose_file }} exec -T app php artisan storage:link || true
+            docker image prune -f
+
+      - name: Health check (optional)
+        if: ${{ inputs.health_url != '' }}
+        run: curl -fsS ${{ inputs.health_url }}
