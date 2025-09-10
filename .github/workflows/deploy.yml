@@ -13,6 +13,7 @@ on:
       github_token: { required: true }
 
 jobs:
+  if: github.repository != 'puthi-sgr/puthi-cicd-templates'
   deploy:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}

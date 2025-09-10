@@ -19,6 +19,7 @@ permissions:
 
 jobs:
   deploy:
+    if: github.repository != 'puthi-sgr/puthi-cicd-templates'
     runs-on: ubuntu-latest
 
     steps:

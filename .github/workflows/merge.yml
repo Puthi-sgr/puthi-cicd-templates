@@ -17,6 +17,7 @@ on:
 
 jobs:
   merge-pr:
+    if: github.repository != 'puthi-sgr/puthi-cicd-templates'
     runs-on: ubuntu-latest
     permissions:
       contents: write
