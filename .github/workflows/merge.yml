@@ -2,6 +2,16 @@
 name: Merge
 on:
   workflow_call:
+    workflow_call:
+    inputs:
+      repo:         { type: string, required: false, default: "${{ github.repository }}" }
+      head_branch:  { type: string, required: false, default: "" }
+      head_sha:     { type: string, required: false, default: "" }
+      base_branch:  { type: string, required: false, default: "main" }
+      require_label:{ type: string, required: false, default: "" }   # e.g. "automerge"
+      merge_method: { type: string, required: false, default: "squash" } # squash|rebase|merge
+      auto:         { type: boolean, required: false, default: true }    # set auto-merge
+      allow_forks:  { type: boolean, required: false, default: false }   # block cross-repo PRs
     secrets:
       github_token: { required: true }
 
@@ -11,13 +21,98 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    concurrency:
+      group: merge-${{ inputs.head_sha || inputs.head_branch || github.run_id }}
+      cancel-in-progress: false
     steps:
       - uses: cli/cli-action@v2
-      - name: Merge PR after CI success (squash, auto)
+
+      - name: Resolve PR number (prefer by commit SHA) if has sha resolve with sha if has only head resolve with head
+        id: pr
         env:
           GH_TOKEN: ${{ secrets.github_token }}
-          GITHUB_TOKEN: ${{ secrets.github_token }}
+          REPO: ${{ inputs.repo }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          HEAD_BRANCH: ${{ inputs.head_branch }}
+          BASE_BRANCH: ${{ inputs.base_branch }}
         run: |
-          PR=$(gh pr list --head "${{ github.event.workflow_run.head_branch }}" --json "number" -q ".[0].number")
-          gh pr merge "$PR" --squash --auto
-          echo "GH_TOKEN set: ${GH_TOKEN:+yes}"
+              set -euo pipefail
+              PR_NUM=""
+
+              # Try by commit SHA (most reliable)
+              if [ -n "${HEAD_SHA}" ]; then
+                # GitHub API: list PRs associated with a commit
+                JSON=$(gh api repos/${REPO}/commits/${HEAD_SHA}/pulls -H "Accept: application/vnd.github+json")
+                PR_NUM=$(echo "$JSON" | jq -r --arg base "$BASE_BRANCH" '
+                  map(select(.base.ref == $base)) | map(select(.state=="open")) | .[0].number // empty')
+              fi
+                #Now we've got the pr number
+              
+              # Fallback: by head branch
+              if [ -z "${PR_NUM}" ] && [ -n "${HEAD_BRANCH}" ]; then
+                JSON=$(gh pr list --repo "${REPO}" --head "${HEAD_BRANCH}" --state open --json number,baseRefName -q '.')
+                PR_NUM=$(echo "$JSON" | jq -r --arg base "$BASE_BRANCH" '
+                  map(select(.baseRefName == $base)) | .[0].number // empty')
+              fi
+
+              if [ -z "${PR_NUM}" ]; then
+                echo "Could not resolve an open PR targeting ${BASE_BRANCH} for REPO=${REPO} using HEAD_SHA=${HEAD_SHA} HEAD_BRANCH=${HEAD_BRANCH}"
+                exit 1
+              fi
+
+              echo "number=${PR_NUM}" >> "$GITHUB_OUTPUT" #Puts the number in the output file. output.number
+      - name: Fetch PR details and safety checks
+        id: checks
+        env:
+          GH_TOKEN: ${{ secrets.github_token }}
+          REPO: ${{ inputs.repo }}
+          PR: ${{ steps.pr.outputs.number }}
+          REQUIRE_LABEL: ${{ inputs.require_label }}
+          BASE_BRANCH: ${{ inputs.base_branch }}
+          ALLOW_FORKS: ${{ inputs.allow_forks }}
+        run: |
+          set -euo pipefail
+          JSON=$(gh pr view "$PR" --repo "$REPO" --json number,baseRefName,headRefName,isCrossRepository,state,isDraft,labels,mergeable,maintainerCanModify,url)
+          echo "$JSON" | jq .
+          STATE=$(echo "$JSON" | jq -r '.state')
+          BASE=$(echo "$JSON" | jq -r '.baseRefName')
+          DRAFT=$(echo "$JSON" | jq -r '.isDraft')
+          CROSS=$(echo "$JSON" | jq -r '.isCrossRepository')
+          MERGEABLE=$(echo "$JSON" | jq -r '.mergeable')
+          HAS_LABEL="true"
+
+          #Barriers
+          if [ -n "$REQUIRE_LABEL" ]; then
+            HAS_LABEL=$(echo "$JSON" | jq -r --arg lbl "$REQUIRE_LABEL" '[.labels[].name] | index($lbl) | if .==null then "false" else "true" end')
+          fi
+          [ "$STATE" = "open" ] || { echo "PR is not open (state=$STATE)"; exit 1; }
+          [ "$DRAFT" = "false" ] || { echo "PR is draft"; exit 1; }
+          [ "$BASE" = "$BASE_BRANCH" ] || { echo "PR base=$BASE != expected base=$BASE_BRANCH"; exit 1; }
+          fi
+
+          [ "$HAS_LABEL" = "true" ] || { echo "Required label '$REQUIRE_LABEL' missing"; exit 1; } #if it has label just do nothing 
+             
+          # MERGEABLE can be "MERGEABLE", "CONFLICTING", "UNKNOWN"; we don't hard fail here,
+          # GitHub will enforce branch protection & required checks at merge time.
+        
+      - name: Merge PR
+        env:
+          GH_TOKEN: ${{ secrets.github_token }}
+          REPO: ${{ inputs.repo }}
+          PR: ${{ steps.pr.outputs.number }}
+          METHOD: ${{ inputs.merge_method }}
+          AUTO: ${{ inputs.auto }}
+        run: |
+          set -euo pipefail
+          FLAGS="--repo \"$REPO\""
+          case "$METHOD" in
+            squash) FLAGS="$FLAGS --squash" ;;
+            rebase) FLAGS="$FLAGS --rebase" ;;
+            merge)  FLAGS="$FLAGS --merge"  ;;
+            *) echo "Unknown merge_method: $METHOD"; exit 1 ;;
+          esac
+          if [ "$AUTO" = "true" ]; then
+            FLAGS="$FLAGS --auto"
+          fi
+          # shellcheck disable=SC2086
+          eval gh pr merge "$PR" $FLAGS

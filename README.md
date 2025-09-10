@@ -92,14 +92,23 @@ jobs:
 name: Merge (Wrapper)
 on:
   workflow_run:
-    workflows: [ "CI (Wrapper)" ]
+    workflows: [ "PR (Container CI)" ]  # must match your PR CI workflow name
     types: [ completed ]
     branches: [ "main" ]
 
 jobs:
   call:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/merge.yml@v1.0.2
+    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/merge.yml@v1.2
+    with:
+      repo:        ${{ github.event.workflow_run.repository.full_name }}
+      head_branch: ${{ github.event.workflow_run.head_branch }}
+      head_sha:    ${{ github.event.workflow_run.head_sha }}
+      base_branch: "main"
+      require_label: ""            # set to "automerge" if you want an explicit label gate
+      merge_method: "squash"       # squash|rebase|merge
+      auto: true                   # keep auto-merge on
+      allow_forks: false           # block forked PRs if desired
     secrets:
       github_token: ${{ secrets.GITHUB_TOKEN }}
 ```
