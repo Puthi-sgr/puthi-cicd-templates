@@ -38,7 +38,7 @@ jobs:
             docker manifest inspect "${{ inputs.image_ref }}" >/dev/null # Check if image exists, the CI should have pushed it
 
       - name: Write env file (opaque, atomic)
-        if: ${{ inputs.manage_env && secrets.env_content_b64 != '' }}
+        if: ${{ inputs.manage_env }}
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.host }}
@@ -81,4 +81,5 @@ jobs:
         if: ${{ inputs.health_url != '' }}
 
         run: curl -fsS ${{ inputs.health_url }}
+
 
