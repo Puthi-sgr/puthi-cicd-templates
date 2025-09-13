@@ -9,7 +9,7 @@ on:
       health_url:      { type: string, default: "" }
       manage_env:      { type: boolean, default: false }             # generic env management
       env_remote_path: { type: string, default: "${{ inputs.working_dir }}/runtime.prod.env" }
-      post_rollout_cmd:{ type: string, default: "" }                 # optional hook, stack-agnostic
+      post_rollout_cmd: { type: string, default: "" }                 # optional hook, stack-agnostic
     secrets:
       host:            { required: true }
       ssh_user:        { required: true }
@@ -79,4 +79,5 @@ jobs:
 
       - name: Health check (optional)
         if: ${{ inputs.health_url != '' }}
+
         run: curl -fsS ${{ inputs.health_url }}
