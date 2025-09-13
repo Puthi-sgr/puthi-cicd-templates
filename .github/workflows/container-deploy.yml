@@ -29,13 +29,13 @@ jobs:
       - name: Preflight (GHCR login + image exists)
         uses: appleboy/ssh-action@v1.2.0
         with:
-        host: ${{ secrets.host }}
-        username: ${{ secrets.ssh_user }}
-        key: ${{ secrets.ssh_key }}
-        script: |
-          set -euo pipefail
-          echo "${{ secrets.ghcr_pat }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker manifest inspect "${{ inputs.image_ref }}" >/dev/null # Check if image exists, the CI should have pushed it
+          host: ${{ secrets.host }}
+          username: ${{ secrets.ssh_user }}
+          key: ${{ secrets.ssh_key }}
+          script: |
+            set -euo pipefail
+            echo "${{ secrets.ghcr_pat }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker manifest inspect "${{ inputs.image_ref }}" >/dev/null # Check if image exists, the CI should have pushed it
 
       - name: Write env file (opaque, atomic)
         if: ${{ inputs.manage_env && secrets.env_content_b64 != '' }}
@@ -70,7 +70,7 @@ jobs:
             # THIS IS THE LINE THAT PROVIDES THE VALUE
             export IMAGE_REF="${{ inputs.image_ref }}"
 
-            docker compose -f ${{ inputs.compose_file }} pull # Pull the image (uses $IMAGE_REF) the image pulling proccess is in the compose file
+            docker compose -f ${{ inputs.compose_file }} pull # Pull the image (uses $IMAGE_REF) the image pulling process is in the compose file
             docker compose -f ${{ inputs.compose_file }} up -d --remove-orphans
             if [ -n "${{ inputs.post_rollout_cmd }}" ]; then
               bash -lc '${{ inputs.post_rollout_cmd }}'
@@ -81,3 +81,4 @@ jobs:
         if: ${{ inputs.health_url != '' }}
 
         run: curl -fsS ${{ inputs.health_url }}
+
