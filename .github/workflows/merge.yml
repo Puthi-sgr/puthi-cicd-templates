@@ -7,7 +7,7 @@ on:
       head_branch:  { type: string, required: false, default: "" }
       head_sha:     { type: string, required: false, default: "" }
       base_branch:  { type: string, required: false, default: "main" }
-      require_label:{ type: string, required: false, default: "" }   # e.g. "automerge"
+      require_label: { type: string, required: false, default: "" }   # e.g. "automerge"
       merge_method: { type: string, required: false, default: "squash" } # squash|rebase|merge
       auto:         { type: boolean, required: false, default: true }    # set auto-merge
       allow_forks:  { type: boolean, required: false, default: false }   # block cross-repo PRs
