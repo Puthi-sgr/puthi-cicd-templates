@@ -11,8 +11,7 @@ on:
       merge_method: { type: string, required: false, default: "squash" } # squash|rebase|merge
       auto:         { type: boolean, required: false, default: true }    # set auto-merge
       allow_forks:  { type: boolean, required: false, default: false }   # block cross-repo PRs
-    secrets:
-      github_token: { required: true }
+    secrets: {}
 
 jobs:
   merge-pr:
