@@ -3,15 +3,19 @@ name: container-deploy
 on:
   workflow_call:
     inputs:
-      working_dir:  { type: string, required: false, default: "/opt/app" }
-      compose_file: { type: string, required: false, default: "docker-compose.prod.yml" }
-      image_ref:    { type: string, required: true }   # ghcr.io/org/app:sha (prefer pin)
-      health_url:   { type: string, required: false, default: "" }
+      working_dir:     { type: string, default: "/opt/app" }
+      compose_file:    { type: string, default: "docker-compose.prod.yml" }
+      image_ref:       { type: string, required: true }              # ghcr.io/org/app:<sha>
+      health_url:      { type: string, default: "" }
+      manage_env:      { type: boolean, default: false }             # generic env management
+      env_remote_path: { type: string, default: "${{ inputs.working_dir }}/runtime.prod.env" }
+      post_rollout_cmd:{ type: string, default: "" }                 # optional hook, stack-agnostic
     secrets:
-      host:         { required: true }  # SSH host/IP
-      ssh_user:     { required: true }  # SSH user (e.g., ubuntu)
-      ssh_key:      { required: true }  # private key
-      ghcr_pat:     { required: true }  # PAT with read:packages
+      host:            { required: true }
+      ssh_user:        { required: true }
+      ssh_key:         { required: true }
+      ghcr_pat:        { required: true }
+      env_content_b64: { required: false } #base 64 env content
 
 permissions:
   contents: read
@@ -21,16 +25,36 @@ jobs:
   deploy:
     if: github.repository != 'puthi-sgr/puthi-cicd-templates'
     runs-on: ubuntu-latest
-
     steps:
-      - name: Upload compose/env to server
-        uses: appleboy/scp-action@v0.1.7
+      - name: Preflight (GHCR login + image exists)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+        host: ${{ secrets.host }}
+        username: ${{ secrets.ssh_user }}
+        key: ${{ secrets.ssh_key }}
+        script: |
+          set -euo pipefail
+          echo "${{ secrets.ghcr_pat }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker manifest inspect "${{ inputs.image_ref }}" >/dev/null # Check if image exists, the CI should have pushed it
+
+      - name: Write env file (opaque, atomic)
+        if: ${{ inputs.manage_env && secrets.env_content_b64 != '' }}
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.host }}
           username: ${{ secrets.ssh_user }}
           key: ${{ secrets.ssh_key }}
-          source: "${{ inputs.compose_file }},stack.env"
-          target: "${{ inputs.working_dir }}"
+          script: |
+            set -Eeuo pipefail
+            WORKDIR="${{ inputs.working_dir }}"
+            DEST="${{ inputs.env_remote_path }}"
+            TMP="$DEST.new"; BAK="$DEST.bak"
+            install -d -m 755 "$WORKDIR"
+            printf '%s' "${{ secrets.env_content_b64 }}" | base64 -d > "$TMP"
+            chmod 600 "$TMP"
+            [ -s "$TMP" ] || { echo "env content empty"; exit 1; } #Check if content in tmp exist
+            [ -f "$DEST" ] && cp -p "$DEST" "$BAK" || true
+            mv -f "$TMP" "$DEST"
 
       - name: Rollout
         uses: appleboy/ssh-action@v1.2.0
@@ -41,14 +65,16 @@ jobs:
           script: |
             set -euo pipefail
             cd ${{ inputs.working_dir }}
-            echo "${{ secrets.ghcr_pat }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            # Ensure app image is pinned to desired ref
-            sed -i "s|^\(\s*image:\s*\).*|\1${{ inputs.image_ref }}|g" ${{ inputs.compose_file }}
-            docker compose -f ${{ inputs.compose_file }} pull
+            echo "${{ secrets.ghcr_pat }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin ## authenticates to GHCR
+
+            # THIS IS THE LINE THAT PROVIDES THE VALUE
+            export IMAGE_REF="${{ inputs.image_ref }}"
+
+            docker compose -f ${{ inputs.compose_file }} pull # Pull the image (uses $IMAGE_REF) the image pulling proccess is in the compose file
             docker compose -f ${{ inputs.compose_file }} up -d --remove-orphans
-            docker compose -f ${{ inputs.compose_file }} exec -T app php artisan key:generate --force || true
-            docker compose -f ${{ inputs.compose_file }} exec -T app php artisan migrate --force || true
-            docker compose -f ${{ inputs.compose_file }} exec -T app php artisan storage:link || true
+            if [ -n "${{ inputs.post_rollout_cmd }}" ]; then
+              bash -lc '${{ inputs.post_rollout_cmd }}'
+            fi
             docker image prune -f
 
       - name: Health check (optional)

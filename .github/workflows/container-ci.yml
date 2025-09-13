@@ -50,7 +50,7 @@ jobs:
           images: ${{ inputs.image_name }}
           tags: |
             type=sha
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }} # only sha value set to latest on main branch (push to main)
       
       - name: Build & Push #Build the image, Push to GHCR
         uses: docker/build-push-action@v6

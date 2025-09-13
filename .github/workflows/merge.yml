@@ -2,7 +2,6 @@
 name: Merge
 on:
   workflow_call:
-    workflow_call:
     inputs:
       repo:         { type: string, required: false, default: "${{ github.repository }}" }
       head_branch:  { type: string, required: false, default: "" }

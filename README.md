@@ -155,7 +155,7 @@ on:
 
 jobs:
   ci:
-    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/container-ci.yml@v1.1.0
+    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/container-ci.yml@v1.x
     with:
       image_name: ghcr.io/ORG/APP
       stack: php-laravel
@@ -174,7 +174,7 @@ on:
 
 jobs:
   ci:
-    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/container-ci.yml@v1.1.0
+    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/container-ci.yml@v1.x
     with:
       image_name: ghcr.io/ORG/APP
       stack: php-laravel
@@ -186,28 +186,34 @@ jobs:
 ### C) Deploy container
 ```yml
 .github/workflows/deploy-container.yml
-name: Deploy (Container)
-
+name: Deploy (Container - Prod)
 on:
   workflow_run:
-    workflows: ["PR (Container CI)"]
-    types: [ "completed" ]
-    branches: [ "main" ]
+    workflows: ["Main (Container Build & Push)"]
+    types: [completed]
+    branches: ["main"]
 
 jobs:
   deploy:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/container-deploy.yml@v1.1.0
+    uses: Puthi-sgr/puthi-cicd-templates/.github/workflows/container-deploy.yml@v1.4
     with:
       working_dir: "/opt/laravel-crud"
       compose_file: "docker-compose.prod.yml"
-      image_ref: "ghcr.io/ORG/APP:${{ github.sha }}"   # pin to exact build
+      # Correctly reference the triggering workflow's commit SHA
+      image_ref: "ghcr.io/org/docker-laravel:${{ github.event.workflow_run.head_sha }}"
+      manage_env: true
+      env_remote_path: "/opt/laravel-crud/runtime.prod.env"
       health_url: "https://your-domain.com/health"
+      # Optional, only for Laravel:
+      post_rollout_cmd: "docker compose -f docker-compose.prod.yml exec -T app php artisan migrate --force"
     secrets:
-      host:     ${{ secrets.SSH_HOST }}
-      ssh_user: ${{ secrets.SSH_USER }}
-      ssh_key:  ${{ secrets.SSH_KEY }}
-      ghcr_pat: ${{ secrets.GHCR_PAT }}
+      host:            ${{ secrets.SSH_HOST }}
+      ssh_user:        ${{ secrets.SSH_USER }}
+      ssh_key:         ${{ secrets.SSH_KEY }}
+      ghcr_pat:        ${{ secrets.GHCR_PAT }}
+      env_content_b64: ${{ secrets.PROD_ENV_B64 }}
+
 ```
 
 ### Flow of this docker workflow
