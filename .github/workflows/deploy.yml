@@ -60,7 +60,9 @@ jobs:
                 && inputs.allow_fallback_build
                 && github.event_name != 'workflow_run'
                 && inputs.stack != '' }}
-        uses: Puthi-sgr/puthi-cicd-templates/.github/actions/setup-${{ inputs.stack }}
+
+        if: ${{ inputs.stack == 'php-laravel' }} #Explicity for laravel
+        uses: Puthi-sgr/puthi-cicd-templates/.github/actions/setup-php-laravel
         with: { mode: full }   # builds tar + sets $PACKAGE_PATH
 
       - name: Select TARBALL_PATH

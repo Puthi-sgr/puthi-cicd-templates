@@ -14,6 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup & Fast tests
-        uses: Puthi-sgr/puthi-cicd-templates/.github/actions/setup-${{ inputs.stack }}
+        if: ${{ inputs.stack == 'php-laravel' }}
+        uses: Puthi-sgr/puthi-cicd-templates/.github/actions/setup-php-laravel
         with: { mode: fast }   # lint + unit only

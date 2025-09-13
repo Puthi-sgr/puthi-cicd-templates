@@ -16,7 +16,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup & Full tests + Package
-        uses: Puthi-sgr/puthi-cicd-templates/.github/actions/setup-${{ inputs.stack }}
+        if: ${{ inputs.stack == 'php-laravel' }}
+        uses: Puthi-sgr/puthi-cicd-templates/.github/actions/setup-php-laravel
         with: { mode: full }                         # sets $PACKAGE_PATH
 
       - name: Ensure APP_VERSION (tag or short SHA)
