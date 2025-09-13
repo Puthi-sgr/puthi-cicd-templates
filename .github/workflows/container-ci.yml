@@ -25,7 +25,7 @@ jobs:
       # ── Stack-aware setup/tests (host-run) ─────────────────────────────────
       - name: Setup & Test (Laravel on host)
         if: ${{ inputs.stack == 'php-laravel' }}
-        uses: Puthi-sgr/puthi-cicd-templates/.github/actions/setup-php-laravel
+        uses: Puthi-sgr/puthi-cicd-templates/.github/actions/setup-php-laravel@v1.8
         with:
           mode: ${{ inputs.build_mode }}
         # NOTE: In mode=full your legacy composite will also tar a package; it's fine.
