@@ -21,9 +21,6 @@ runs:
     - if: ${{ inputs.mode == 'full' }}
       run: |
         php artisan test
-        php artisan config:cache
-        php artisan route:cache
-        php artisan view:cache
         tar -czf $RUNNER_TEMP/app.tgz \
           --exclude-vcs --exclude='.github' --exclude='storage' --exclude='.env' .
         echo "PACKAGE_PATH=$RUNNER_TEMP/app.tgz" >> $GITHUB_ENV
